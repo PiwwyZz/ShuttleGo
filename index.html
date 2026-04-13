@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ShuttleGo — The Clev Riverline</title>
+    <meta name="description"
+        content="Real-time shuttle tracking, booking, and community chat for The Clev Riverline residents. Track GPS, book seats, and chat with your community.">
+    <meta name="theme-color" content="#0A0A0A" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ShuttleGo">
+
+    <meta property="og:title" content="ShuttleGo — The Clev Riverline">
+    <meta property="og:description"
+        content="Track shuttle location in real-time, book seats, and chat with your community.">
+    <meta property="og:type" content="website">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+    <!-- OFFLINE BANNER -->
+    <div class="offline-banner" id="offlineBanner">⚡ No Internet Connection</div>
+
+    <!-- TOAST -->
+    <div id="toast-wrap"></div>
+
+    <!-- =============================================
+     LOGIN SCREEN
+============================================= -->
+    <div id="loginScreen">
+        <!-- Animated mesh gradient background -->
+        <div class="login-mesh">
+            <div class="blob blob-1"></div>
+            <div class="blob blob-2"></div>
+            <div class="blob blob-3"></div>
+        </div>
+
+        <div class="login-wrap fade-up">
+            <div class="login-header">
+                <div class="login-shuttle-icon">🚐</div>
+                <div class="login-logo">ShuttleGo.</div>
+                <div class="login-sub" data-i18n="app_subtitle">The Clev Riverline</div>
+            </div>
+            <div class="field">
+                <label data-i18n="username_label">Username / Room</label>
+                <div class="input-wrap">
+                    <input type="text" id="loginUser" placeholder="168/267" autocomplete="username" />
+                </div>
+            </div>
+            <div class="field" style="margin-bottom: 32px;">
+                <label data-i18n="password_label">Password / Phone</label>
+                <div class="input-wrap">
+                    <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" />
+                    <button class="toggle-pw" id="togglePwBtn" type="button" aria-label="Toggle password visibility">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <button class="btn btn-primary tap" id="loginBtn" data-i18n="login_btn">Sign In</button>
+        </div>
+    </div>
+
+    <!-- =============================================
+     MAIN APP
+============================================= -->
+    <div id="mainApp">
+        <!-- NAVBAR -->
+        <div class="navbar">
+            <div class="navbar-logo">ShuttleGo.</div>
+            <div class="navbar-right">
+                <div id="gpsBadge" class="gps-offline-pill">
+                    <div style="width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;"></div>
+                    <span id="gpsBadgeText">GPS OFF</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: MAP -->
+        <div class="tab" id="tab-resident">
+            <div class="tab-inner">
+                <div class="map-card fade-up">
+                    <div style="position:relative;">
+                        <div id="map"></div>
+                        <div class="map-overlay-btns">
+                            <button class="map-btn" id="mapCenterBtn" aria-label="Center on shuttle">
+                                <svg viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="3" />
+                                    <path d="M12 2v4m0 12v4M2 12h4m12 0h4" />
+                                </svg>
+                            </button>
+                            <button class="map-btn" id="mapFitBtn" aria-label="Fit route">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Shuttle approaching alert -->
+                    <div class="shuttle-alert" id="shuttleAlert">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                            <polyline points="22 4 12 14.01 9 11.01" />
+                        </svg>
+                        <span data-i18n="shuttle_arriving">Shuttle is arriving!</span>
+                    </div>
+                    <div class="gps-banner offline" id="gpsBanner">
+                        <div class="gps-pulse">
+                            <div class="gps-pulse-dot"></div>
+                        </div>
+                        <span id="gpsBannerText">GPS Offline — Waiting for driver</span>
+                    </div>
+                    <div class="stats-row">
+                        <div class="stat">
+                            <div class="stat-label" data-i18n="eta">ETA</div>
+                            <div class="stat-value stale" id="etaVal">--</div>
+                            <div class="stat-unit">min</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label" data-i18n="distance">Dist</div>
+                            <div class="stat-value stale" id="distVal">--</div>
+                            <div class="stat-unit">km</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label" data-i18n="seats">Avail</div>
+                            <div class="stat-value" id="seatsLeft">--</div>
+                            <div class="stat-unit" data-i18n="seat_unit">seats</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card fade-up d1">
+                    <div class="card-head">
+                        <span data-i18n="route_overview">Route</span>
+                        <span id="routeStopsCount" style="font-weight:400;font-size:11px;color:var(--text-3);"></span>
+                    </div>
+                    <div class="route-list" id="routeList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: RIDE / BOOKING -->
+        <div class="tab" id="tab-ride">
+            <div class="tab-inner">
+                <div class="countdown-block fade-up">
+                    <div class="countdown-label" data-i18n="next_dep">Next Departure</div>
+                    <div class="countdown-time" id="countdown">--</div>
+                    <div class="countdown-next" id="nextDepLabel">—</div>
+                </div>
+                <div class="card fade-up d1">
+                    <div class="card-head" data-i18n="reserve_seat">Booking</div>
+                    <div class="card-body">
+                        <!-- Booking success animation -->
+                        <div class="booking-success-anim" id="bookingSuccessAnim">
+                            <div class="booking-success-icon">
+                                <svg viewBox="0 0 24 24">
+                                    <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                            </div>
+                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;"
+                                data-i18n="booking_confirmed">Confirmed!</div>
+                            <div style="font-size:13px;color:var(--text-2);" data-i18n="booking_success_msg">Your seat
+                                has been reserved</div>
+                        </div>
+
+                        <div id="bookingConfirmed" style="display:none;">
+                            <div class="booking-confirmed-box">
+                                <div class="confirmed-title">
+                                    <svg viewBox="0 0 24 24">
+                                        <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                    <span data-i18n="booking_confirmed">Confirmed</span>
+                                </div>
+                                <div class="confirmed-detail" id="confirmDetail"></div>
+                                <div class="booking-ref">
+                                    <span>REF</span>
+                                    <span class="booking-ref-code" id="bookingRefCode">—</span>
+                                </div>
+                                <div class="personal-eta-row">
+                                    <div class="personal-eta-label" data-i18n="your_eta">Your Pickup ETA</div>
+                                    <div class="personal-eta-value waiting" id="personalETA" data-i18n="waiting_gps">
+                                        Waiting for GPS...</div>
+                                </div>
+                            </div>
+                            <button class="btn btn-danger tap" id="cancelBookBtn" data-i18n="cancel_res">Cancel
+                                Booking</button>
+                        </div>
+                        <div id="bookingForm">
+                            <div class="form-group">
+                                <label data-i18n="passenger_name">Passenger Name</label>
+                                <input type="text" id="nameInput" placeholder="Your name" />
+                            </div>
+                            <div style="display:flex;gap:12px;">
+                                <div class="form-group" style="flex:1;">
+                                    <label data-i18n="seats">Seats</label>
+                                    <select id="seatsInput">
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="flex:2;">
+                                    <label data-i18n="select_time">Time</label>
+                                    <select id="timeInput"></select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label data-i18n="pickup_loc">Pickup Stop</label>
+                                <select id="pickupInput"></select>
+                            </div>
+                            <button class="btn btn-primary tap" id="bookBtn" data-i18n="confirm_res">Confirm
+                                Booking</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card fade-up d2">
+                    <div class="card-head" data-i18n="today_timetable">Schedule</div>
+                    <div id="scheduleList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: CHAT -->
+        <div class="tab" id="tab-chat">
+            <div class="tab-inner">
+                <div class="card fade-up">
+                    <div class="card-head">
+                        <span data-i18n="community_chat">Community Chat</span>
+                        <span id="chatCount" style="font-weight:400;font-size:11px;color:var(--text-3);"></span>
+                    </div>
+                    <div class="card-body">
+                        <div class="chat-scroll" id="chatBox"></div>
+                        <div class="chat-input-row">
+                            <input class="chat-text-input" type="text" id="chatInput" placeholder="Message..."
+                                maxlength="500" />
+                            <button class="chat-send-btn" id="chatSendBtn" aria-label="Send message">
+                                <svg viewBox="0 0 24 24">
+                                    <line x1="22" y1="2" x2="11" y2="13" />
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: DRIVER -->
+        <div class="tab" id="tab-driver">
+            <div class="tab-inner">
+                <div class="gps-perm-banner" id="httpsBanner">
+                    <strong>⚠ แนะนำใช้ HTTPS</strong><br>
+                    GPS อาจทำงานไม่ได้บนบางเบราว์เซอร์หากไม่ได้ใช้ HTTPS<br>
+                    ระบบจะลองเปิด GPS ให้อัตโนมัติ ถ้าใช้ไม่ได้ ให้เปลี่ยนเป็น HTTPS
+                    <br><button class="perm-dismiss">ปิด</button>
+                </div>
+                <div class="gps-perm-banner" id="gpsPermBanner">
+                    <strong>⚠ ต้องอนุญาต GPS</strong><br>
+                    กรุณาเปิดสิทธิ์ Location ในตั้งค่าเบราว์เซอร์ แล้วกด "เริ่มส่งพิกัด" อีกครั้ง
+                    <br><button class="perm-dismiss">ปิด</button>
+                </div>
+                <div class="card fade-up">
+                    <div class="card-body">
+                        <div class="nav-target-box" id="navTargetBox">
+                            <div class="nav-target-label">Navigating To</div>
+                            <div class="nav-target-name" id="navTargetName">—</div>
+                            <div class="nav-metrics">
+                                <div>
+                                    <div class="nav-metric-lbl">ETA</div>
+                                    <div class="nav-metric-val" id="navETA">— min</div>
+                                </div>
+                                <div>
+                                    <div class="nav-metric-lbl">Dist</div>
+                                    <div class="nav-metric-val" id="navDist">— km</div>
+                                </div>
+                                <div>
+                                    <div class="nav-metric-lbl">Acc</div>
+                                    <div class="nav-metric-val" id="navAcc">— m</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="driver-status-box" id="driverStatusBox">
+                            <div class="driver-status-indicator" id="driverIndicator">🔴</div>
+                            <div class="driver-status-text" id="driverStatusText" data-i18n="sys_idle">System Idle</div>
+                            <div class="driver-coords" id="driverCoords">GPS Offline</div>
+                            <div class="driver-gps-acc" id="driverAcc"></div>
+                            <div class="driver-speed-badge" id="driverSpeed" style="display:none;">0 km/h</div>
+                        </div>
+                        <button class="btn btn-primary tap" id="startBtn" data-i18n="start_broadcast">Start
+                            Broadcasting</button>
+                        <button class="btn btn-danger tap" id="stopBtn" style="display:none;" data-i18n="stop">Stop
+                            Broadcasting</button>
+                    </div>
+                </div>
+                <div class="card fade-up d1">
+                    <div class="card-head">
+                        <span data-i18n="passenger_manifest">Manifest</span>
+                        <span id="seatCount" style="font-weight:400;font-size:11px;color:var(--text-3);">0 / 8</span>
+                    </div>
+                    <div id="manifestList" style="padding:12px 16px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: ADMIN -->
+        <div class="tab" id="tab-admin">
+            <div class="tab-inner">
+                <div class="admin-stats fade-up">
+                    <div class="admin-stat">
+                        <div class="admin-stat-n" id="adminUsers">0</div>
+                        <div class="admin-stat-l" data-i18n="total_users">Bookings</div>
+                    </div>
+                    <div class="admin-stat">
+                        <div class="admin-stat-n" id="adminSeats">0</div>
+                        <div class="admin-stat-l">Seats</div>
+                    </div>
+                    <div class="admin-stat">
+                        <div class="admin-stat-n" id="adminOnline">0</div>
+                        <div class="admin-stat-l">Online</div>
+                    </div>
+                </div>
+                <div class="card fade-up d1">
+                    <div class="card-head">
+                        <span>Active Sessions</span>
+                        <span id="sessionCount" style="font-weight:400;font-size:11px;color:var(--text-3);">0
+                            online</span>
+                    </div>
+                    <div id="sessionList">
+                        <div class="empty-state">No users online.</div>
+                    </div>
+                </div>
+                <div class="card fade-up d2">
+                    <div class="card-head" data-i18n="clear_sys">System</div>
+                    <div class="card-body">
+                        <button class="btn btn-danger tap" id="clearBookingsBtn" data-i18n="clear_btn">Clear All
+                            Bookings</button>
+                        <button class="btn btn-ghost tap" id="clearChatsBtn" style="margin-top:10px;">Clear All
+                            Chats</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: SETTINGS -->
+        <div class="tab" id="tab-settings">
+            <div class="tab-inner">
+                <div class="card fade-up">
+                    <div class="card-head" data-i18n="preferences">Settings</div>
+                    <div class="settings-row">
+                        <div class="settings-key">
+                            <div class="setting-icon" style="background:var(--info-glow);">🌐</div>
+                            <span data-i18n="language">Language</span>
+                        </div>
+                        <div style="display:flex;gap:6px;">
+                            <button class="lang-btn" id="btn-en">EN</button>
+                            <button class="lang-btn" id="btn-th">TH</button>
+                        </div>
+                    </div>
+                    <div class="settings-row" id="nameSettingRow" style="display:none;">
+                        <div class="settings-key">
+                            <div class="setting-icon" style="background:var(--success-glow);">👤</div>
+                            <span data-i18n="def_name">Name</span>
+                        </div>
+                        <input class="name-input-inline" type="text" id="settingName" placeholder="Your name" />
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-key">
+                            <div class="setting-icon" style="background:rgba(175,82,222,0.1);">🌙</div>
+                            <span data-i18n="dark_mode">Dark Mode</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="darkToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-key">
+                            <div class="setting-icon" style="background:var(--warning-glow);">🔔</div>
+                            <span data-i18n="notifications">Alerts</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="notifToggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="card fade-up d1">
+                    <div class="card-body">
+                        <button class="btn btn-ghost tap" id="logoutBtn" data-i18n="logout">Sign Out</button>
+                    </div>
+                </div>
+                <div class="credit fade-up d2">
+                    <div class="credit-by">Engineered By</div>
+                    <div class="credit-name">Supakorn Kheiwchaoum</div>
+                </div>
+                <div class="app-version fade-up d3">v2.0.0</div>
+            </div>
+        </div>
+
+        <!-- BOTTOM NAV -->
+        <nav class="bottom-nav">
+            <button class="nav-btn" id="nav-resident" data-tab="resident">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" />
+                        <circle cx="12" cy="12" r="3" />
+                    </svg>
+                </span>
+                <span class="nav-label" data-i18n="tab_track">Map</span>
+            </button>
+            <button class="nav-btn" id="nav-ride" data-tab="ride">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                </span>
+                <span class="nav-label" data-i18n="tab_ride">Ride</span>
+            </button>
+            <button class="nav-btn" id="nav-chat" data-tab="chat">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <span class="nav-badge" id="chatBadge"></span>
+                </span>
+                <span class="nav-label" data-i18n="tab_chat">Chat</span>
+            </button>
+            <button class="nav-btn" id="nav-driver" data-tab="driver">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24">
+                        <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2" />
+                        <line x1="12" y1="22" x2="12" y2="15.5" />
+                        <polyline points="22 8.5 12 15.5 2 8.5" />
+                    </svg>
+                </span>
+                <span class="nav-label" data-i18n="tab_driver">Drive</span>
+            </button>
+            <button class="nav-btn" id="nav-admin" data-tab="admin">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="7" height="7" rx="1" />
+                        <rect x="14" y="3" width="7" height="7" rx="1" />
+                        <rect x="14" y="14" width="7" height="7" rx="1" />
+                        <rect x="3" y="14" width="7" height="7" rx="1" />
+                    </svg>
+                </span>
+                <span class="nav-label" data-i18n="tab_admin">Admin</span>
+            </button>
+            <button class="nav-btn" id="nav-settings" data-tab="settings">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                </span>
+                <span class="nav-label" data-i18n="tab_settings">Menu</span>
+            </button>
+        </nav>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>
